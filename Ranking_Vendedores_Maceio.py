@@ -67,17 +67,24 @@ def definir_html(df_ref):
 
     return html
 
-def criar_output_html(nome_html, html, titulo_inclusos, titulo_vendas, titulo_total):
+def criar_output_html(nome_html, html, titulo_inclusos, titulo_vendas, titulo_total, titulo_cld, titulo_total_s_cld, servico):
 
     with open(nome_html, "w", encoding="utf-8") as file:
 
-        file.write(f'<p style="font-size:40px;">{titulo_inclusos}</p>\n\n')
+        file.write(f'<p style="font-size:30px;">{servico}</p>\n\n')
 
-        file.write(f'<p style="font-size:40px;">{titulo_vendas}</p>\n\n')
+        file.write(f'<p style="font-size:25px;">{titulo_inclusos}</p>\n\n')
 
-        file.write(f'<p style="font-size:40px;">{titulo_total}</p>\n\n')
+        file.write(f'<p style="font-size:25px;">{titulo_vendas}</p>\n\n')
+
+        file.write(f'<p style="font-size:25px;">{titulo_total}</p>\n\n')
+
+        file.write(f'<p style="font-size:25px;">{titulo_cld}</p>\n\n')
+
+        file.write(f'<p style="font-size:25px;">{titulo_total_s_cld}</p>\n\n')
         
         file.write(html)
+
 
 st.set_page_config(layout='wide')
 
@@ -115,14 +122,15 @@ if data_inicial and data_final:
 
     df_router_filtrado = st.session_state.mapa_router[(st.session_state.mapa_router['Data Execucao'] >= data_inicial) & 
                                                       (st.session_state.mapa_router['Data Execucao'] <= data_final) & 
-                                                      (st.session_state.mapa_router['Tipo de Servico'] == 'TOUR')].reset_index(drop=True)
+                                                      (st.session_state.mapa_router['Tipo de Servico'] == 'TOUR') & 
+                                                      (st.session_state.mapa_router['Status do Servico'] != 'CANCELADO')].reset_index(drop=True)
     
     df_router_filtrado['Total ADT | CHD'] = df_router_filtrado['Total ADT'] + df_router_filtrado['Total CHD']
     
     df_sales_filtrado = st.session_state.sales_ranking[(st.session_state.sales_ranking['Data de Execucao'] >= data_inicial) & 
-                                                            (st.session_state.sales_ranking['Data de Execucao'] <= data_final) & 
-                                                            (st.session_state.sales_ranking['Tipo de Servico'] == 'TOUR')]\
-                                                                .reset_index(drop=True)
+                                                       (st.session_state.sales_ranking['Data de Execucao'] <= data_final) & 
+                                                       (st.session_state.sales_ranking['Tipo de Servico'] == 'TOUR')]\
+                                                        .reset_index(drop=True)
     
     df_vendedores = pd.merge(df_router_filtrado, df_sales_filtrado[['Codigo da Reserva', '1 Vendedor', 'Data de Execucao', 'Servico']], 
                              how='left', left_on=['Reserva', 'Data Execucao', 'Servico'], 
@@ -157,17 +165,34 @@ if data_inicial and data_final:
 
         total_paxs_vendedores = df_ranking['Total ADT | CHD'].sum()
 
+        total_cld = df_mapa_filtrado_servico.apply(
+            lambda row: row['Total ADT | CHD'] if pd.notna(row['Observacao']) and 'CLD' in row['Observacao'].upper() else 0,
+            axis=1
+        ).sum()
+
         st.session_state.titulo_inclusos = f'Incluso = {int(total_paxs-total_paxs_vendedores)}'
 
         st.session_state.titulo_vendas = f'Vendas = {int(total_paxs_vendedores)}'
 
         st.session_state.titulo_total = f'Total = {int(total_paxs)}'
 
+        st.session_state.titulo_cld = f'CLD = {int(total_cld)}'
+
+        st.session_state.titulo_total_s_cld = f'Total sem CLD = {int(total_paxs-total_cld)}'
+
+        st.session_state.servico = f"Serviços: {' + '.join(servico)}"
+
+        container_2.write(st.session_state.servico)
+
         container_2.write(st.session_state.titulo_inclusos)
 
         container_2.write(st.session_state.titulo_vendas)
 
         container_2.write(st.session_state.titulo_total)
+
+        container_2.write(st.session_state.titulo_cld)
+        
+        container_2.write(st.session_state.titulo_total_s_cld)
 
         df_ranking = df_ranking.rename(columns={'1 Vendedor': 'Vendedor', 'Total ADT | CHD': 'Paxs'})  
 
@@ -184,7 +209,8 @@ if 'df_ranking' in st.session_state:
     html = definir_html(st.session_state.df_ranking)
 
     criar_output_html(st.session_state.nome_html, html, st.session_state.titulo_inclusos, st.session_state.titulo_vendas, 
-                        st.session_state.titulo_total)
+                      st.session_state.titulo_total, st.session_state.titulo_cld, st.session_state.titulo_total_s_cld, 
+                      st.session_state.servico)
     
     with open(st.session_state.nome_html, "r", encoding="utf-8") as file:
 
