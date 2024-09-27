@@ -94,6 +94,8 @@ if 'mapa_router' not in st.session_state:
 
     st.session_state.sales_ranking = bd_phoenix('vw_sales_ranking')
 
+    st.session_state.df_escalas = bd_phoenix('vw_payment_guide')
+
 st.title('Ranking Vendedores')
 
 st.divider()
@@ -112,6 +114,8 @@ if atualizar_dados:
 
     st.session_state.sales_ranking = bd_phoenix('vw_sales_ranking')
 
+    st.session_state.df_escalas = bd_phoenix('vw_payment_guide')
+
 with row0[0]:
 
     data_inicial = st.date_input('Data Inicial', value=None ,format='DD/MM/YYYY', key='data_inicial')
@@ -123,7 +127,8 @@ if data_inicial and data_final:
     df_router_filtrado = st.session_state.mapa_router[(st.session_state.mapa_router['Data Execucao'] >= data_inicial) & 
                                                       (st.session_state.mapa_router['Data Execucao'] <= data_final) & 
                                                       (st.session_state.mapa_router['Tipo de Servico'] == 'TOUR') & 
-                                                      (st.session_state.mapa_router['Status do Servico'] != 'CANCELADO')].reset_index(drop=True)
+                                                      (st.session_state.mapa_router['Status do Servico'] != 'CANCELADO')]\
+                                                        .reset_index(drop=True)
     
     df_router_filtrado['Total ADT | CHD'] = df_router_filtrado['Total ADT'] + df_router_filtrado['Total CHD']
     
@@ -158,8 +163,29 @@ if data_inicial and data_final:
 
         df_mapa_filtrado_servico['Total ADT | CHD'] = df_mapa_filtrado_servico['Total ADT'] + df_mapa_filtrado_servico['Total CHD']
 
-        df_ranking = df_mapa_filtrado_servico.groupby('1 Vendedor').agg({'Total ADT | CHD': 'sum'})\
-            .sort_values(by='Total ADT | CHD', ascending=False).reset_index()
+        lista_reservas = df_mapa_filtrado_servico['Reserva'].unique().tolist()
+
+        df_in = st.session_state.df_escalas[(st.session_state.df_escalas['Tipo de Servico']=='IN') & 
+                                            ~(pd.isna(st.session_state.df_escalas['Escala'])) & 
+                                            (st.session_state.df_escalas['Reserva'].isin(lista_reservas)) & 
+                                            ~(pd.isna(st.session_state.df_escalas['Guia']))].reset_index(drop=True)
+        
+        df_mapa_filtrado_servico = pd.merge(df_mapa_filtrado_servico, df_in[['Reserva', 'Guia']], on='Reserva', how='left')
+
+        df_ranking = df_mapa_filtrado_servico.groupby('1 Vendedor').agg({'Total ADT | CHD': 'sum'}).reset_index()
+        
+        df_inclusos_guia = df_mapa_filtrado_servico[['Guia', 'Total ADT | CHD']].groupby('Guia').agg({'Total ADT | CHD': 'sum'})\
+            .reset_index()
+        
+        df_inclusos_guia = df_inclusos_guia.rename(columns={'Guia': '1 Vendedor', 'Total ADT | CHD': 'Paxs Inclusos'})
+
+        df_ranking = pd.merge(df_ranking, df_inclusos_guia, on='1 Vendedor', how='left')
+
+        df_ranking['Paxs Inclusos'] = df_ranking['Paxs Inclusos'].fillna(0)
+
+        df_ranking['Paxs Totais'] = df_ranking['Paxs Inclusos'] + df_ranking['Total ADT | CHD']
+
+        df_ranking = df_ranking.sort_values(by='Paxs Totais', ascending=False)
         
         total_paxs = df_router_filtrado[df_router_filtrado['Servico'].isin(servico)]['Total ADT | CHD'].sum()
 
@@ -194,15 +220,23 @@ if data_inicial and data_final:
         
         container_2.write(st.session_state.titulo_total_s_cld)
 
-        df_ranking = df_ranking.rename(columns={'1 Vendedor': 'Vendedor', 'Total ADT | CHD': 'Paxs'})  
+        df_ranking = df_ranking.rename(columns={'1 Vendedor': 'Vendedor', 'Total ADT | CHD': 'Paxs Opcionais'})  
 
-        df_ranking['Paxs'] = pd.to_numeric(df_ranking['Paxs'], errors='coerce').fillna(0).astype(int) 
+        df_ranking['Paxs Opcionais'] = pd.to_numeric(df_ranking['Paxs Opcionais'], errors='coerce').fillna(0).astype(int) 
+
+        df_ranking['Paxs Inclusos'] = pd.to_numeric(df_ranking['Paxs Inclusos'], errors='coerce').fillna(0).astype(int) 
+
+        df_ranking['Paxs Totais'] = pd.to_numeric(df_ranking['Paxs Totais'], errors='coerce').fillna(0).astype(int) 
 
         container_2.dataframe(df_ranking, hide_index=True, use_container_width=True)
 
         st.session_state.df_ranking = df_ranking
 
         st.session_state.nome_html = f"{servico[0].split(' ')[0]}.html"
+
+        st.session_state.nome_html_2 = f"Alejandro | {servico[0].split(' ')[0]}.html"
+
+
 
 if 'df_ranking' in st.session_state:
 
@@ -216,9 +250,32 @@ if 'df_ranking' in st.session_state:
 
         html_content = file.read()
 
-    st.download_button(
-        label="Baixar Arquivo HTML",
-        data=html_content,
-        file_name=st.session_state.nome_html,
-        mime="text/html"
-    )
+    html_2 = definir_html(st.session_state.df_ranking[['Vendedor', 'Paxs Opcionais']])
+
+    criar_output_html(st.session_state.nome_html_2, html_2, st.session_state.titulo_inclusos, st.session_state.titulo_vendas, 
+                      st.session_state.titulo_total, st.session_state.titulo_cld, st.session_state.titulo_total_s_cld, 
+                      st.session_state.servico)
+    
+    with open(st.session_state.nome_html_2, "r", encoding="utf-8") as file:
+
+        html_content_2 = file.read()
+
+    row3 = st.columns(2)
+
+    with row3[0]:
+
+        st.download_button(
+            label="Baixar Arquivo HTML",
+            data=html_content,
+            file_name=st.session_state.nome_html,
+            mime="text/html"
+        )
+
+    with row3[1]:
+
+        st.download_button(
+            label="Baixar Arquivo HTML | Alejandro",
+            data=html_content_2,
+            file_name=st.session_state.nome_html_2,
+            mime="text/html"
+        )
