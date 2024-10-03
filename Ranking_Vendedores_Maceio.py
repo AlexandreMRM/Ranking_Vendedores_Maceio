@@ -129,10 +129,11 @@ if senha=='luckmcz@1960':
     if data_inicial and data_final:
     
         df_router_filtrado = st.session_state.mapa_router[(st.session_state.mapa_router['Data Execucao'] >= data_inicial) & 
-                                                          (st.session_state.mapa_router['Data Execucao'] <= data_final) & 
-                                                          (st.session_state.mapa_router['Tipo de Servico'] == 'TOUR') & 
-                                                          (st.session_state.mapa_router['Status do Servico'] != 'CANCELADO')]\
-                                                            .reset_index(drop=True)
+                                                      (st.session_state.mapa_router['Data Execucao'] <= data_final) & 
+                                                      (st.session_state.mapa_router['Tipo de Servico'] == 'TOUR') & 
+                                                      (st.session_state.mapa_router['Status do Servico'] != 'CANCELADO') & 
+                                                      (st.session_state.mapa_router['Status_Financeiro'] != 'Trocado')]\
+                                                        .reset_index(drop=True)
         
         df_router_filtrado['Total ADT | CHD'] = df_router_filtrado['Total ADT'] + df_router_filtrado['Total CHD']
         
