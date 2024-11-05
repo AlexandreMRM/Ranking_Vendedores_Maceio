@@ -24,4 +24,4 @@ COPY . .
 
 EXPOSE 8082
 
-CMD ["streamlit", "run", "app.py", "--server.port=8082"]
+CMD ["streamlit", "run", "Ranking_Vendedores_Maceio.py", "--server.port=8082"]
