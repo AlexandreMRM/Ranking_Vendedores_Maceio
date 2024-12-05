@@ -155,6 +155,4 @@ if data_inicial and data_final:
 
     container_dataframe.dataframe(df_vendedores_rascunho_filtrado, hide_index=True, use_container_width=True)
 
-'''
-TESTE
-'''
+
